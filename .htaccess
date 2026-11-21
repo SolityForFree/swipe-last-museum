@@ -1,0 +1,8 @@
+# Uploaded to the web root by deploy.sh (Apache).
+DirectoryIndex swipe.html index.php
+
+# Never serve secrets, the database or build files, even if they end up on the server.
+<FilesMatch "(^\.env|^lib\.php$|\.(py|sqlite|sqlite-wal|sqlite-shm|sh)$)">
+    Require all denied
+</FilesMatch>
+RedirectMatch 404 ^/data/

@@ -1,0 +1,13 @@
+# Secrets: FTP login and admin password
+.env
+.env.*
+# Deploy script (server-specific)
+deploy.sh
+# Generated on deploy from ADMIN_PASSWORD (bcrypt hash)
+data/admin_hash.php
+# Votes and visit stats
+data/*.sqlite
+data/*.sqlite-wal
+data/*.sqlite-shm
+# Python cache
+__pycache__/

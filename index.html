@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Random Muse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f1ea;
+    --panel: #fbfaf6;
+    --ink: #1d1b18;
+    --muted: #6b665d;
+    --line: #dcd6ca;
+    --accent: #a4472b;
+    --accent-ink: #fff;
+    --chip: #ebe6db;
+    --stage: #e7e2d7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141312;
+      --panel: #1c1b19;
+      --ink: #ece8df;
+      --muted: #9d978b;
+      --line: #33302b;
+      --accent: #e07a55;
+      --accent-ink: #1a0d07;
+      --chip: #2a2825;
+      --stage: #0e0d0c;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.55 Inter, system-ui, sans-serif;
+    display: flex; flex-direction: column;
+  }
+  button, select { font: inherit; color: inherit; }
+
+  /* Top bar */
+  header {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+    padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  .brand { font-family: Fraunces, Georgia, serif; font-size: 22px; font-weight: 600; margin-right: auto; letter-spacing: -0.01em; }
+  .brand small { font: 500 12px Inter, sans-serif; color: var(--muted); margin-left: 8px; letter-spacing: 0; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  select {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 10px; max-width: 220px;
+  }
+  .btn {
+    border: 1px solid var(--line); background: var(--bg); border-radius: 8px;
+    padding: 7px 14px; cursor: pointer; font-weight: 500;
+  }
+  .btn:hover { border-color: var(--muted); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.primary:hover { filter: brightness(1.08); }
+
+  /* Main */
+  main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 400px; min-height: 0; }
+  .stage {
+    position: relative; background: var(--stage);
+    display: flex; align-items: center; justify-content: center;
+    padding: 28px; min-height: 0; overflow: hidden;
+  }
+  .stage img {
+    max-width: 100%; max-height: 100%; object-fit: contain;
+    box-shadow: 0 10px 40px rgba(0,0,0,.25);
+    opacity: 0; transition: opacity .35s ease;
+    cursor: zoom-in;
+  }
+  .stage img.ready { opacity: 1; }
+  .stage .loading { position: absolute; color: var(--muted); font-size: 13px; }
+  .stage.zoom { position: fixed; inset: 0; z-index: 20; padding: 0; background: #000; }
+  .stage.zoom img { cursor: zoom-out; box-shadow: none; }
+
+  aside {
+    border-left: 1px solid var(--line); background: var(--panel);
+    padding: 26px 26px 32px; overflow-y: auto;
+  }
+  .kicker { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .style-badge {
+    background: var(--accent); color: var(--accent-ink); border: 0;
+    border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .chip {
+    background: var(--chip); border: 0; border-radius: 999px;
+    padding: 4px 10px; font-size: 12.5px; cursor: pointer; color: var(--ink);
+  }
+  .chip:hover, .style-badge:hover { filter: brightness(1.1); }
+  h1 { font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 27px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .artist { font-size: 16px; margin: 0 0 2px; }
+  .date { color: var(--muted); margin: 0 0 18px; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0 0 20px; font-size: 14px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+  .desc { font-size: 14.5px; border-top: 1px solid var(--line); padding-top: 16px; }
+  .desc.clamp p { display: -webkit-box; -webkit-line-clamp: 9; -webkit-box-orient: vertical; overflow: hidden; }
+  .desc p { margin: 0 0 8px; }
+  .more { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font-weight: 500; }
+  .nodesc { color: var(--muted); font-style: italic; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+  .actions a { color: var(--accent); font-weight: 500; text-decoration: none; align-self: center; margin-left: auto; font-size: 14px; }
+  .actions a:hover { text-decoration: underline; }
+  .saved-on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .credit { margin-top: 26px; font-size: 12px; color: var(--muted); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  kbd { font: 11px Inter, sans-serif; border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+
+  /* Saved drawer */
+  .drawer {
+    position: fixed; inset: 0 0 0 auto; width: min(420px, 100%); z-index: 30;
+    background: var(--panel); border-left: 1px solid var(--line);
+    transform: translateX(100%); transition: transform .25s ease;
+    display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: none; box-shadow: -10px 0 40px rgba(0,0,0,.25); }
+  .drawer header { justify-content: space-between; }
+  .drawer h2 { font-family: Fraunces, Georgia, serif; margin: 0; font-size: 20px; }
+  .grid { padding: 16px; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .grid button { padding: 0; border: 0; background: var(--stage); aspect-ratio: 1; cursor: pointer; border-radius: 6px; overflow: hidden; }
+  .grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .empty { padding: 24px; color: var(--muted); }
+
+  @media (max-width: 860px) {
+    header { padding: 10px 16px; }
+    main { grid-template-columns: 1fr; grid-template-rows: 62vh auto; }
+    .stage { padding: 16px; }
+    aside { border-left: 0; border-top: 1px solid var(--line); padding: 20px 16px 28px; overflow: visible; }
+    select { max-width: 100%; flex: 1 1 140px; }
+    .filters { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Random Muse <small id="count"></small></div>
+  <div class="filters">
+    <select id="f-style" aria-label="Style"></select>
+    <select id="f-era" aria-label="Era"></select>
+    <select id="f-type" aria-label="Type"></select>
+    <select id="f-source" aria-label="Museum"></select>
+    <button class="btn" id="b-saved">Saved (0)</button>
+    <button class="btn primary" id="b-next">Another ↻</button>
+  </div>
+</header>
+
+<main>
+  <div class="stage" id="stage">
+    <span class="loading" id="loading">Loading…</span>
+    <img id="art" alt="">
+  </div>
+  <aside id="info"></aside>
+</main>
+
+<div class="drawer" id="drawer" aria-hidden="true">
+  <header><h2>Saved for inspiration</h2><button class="btn" id="b-close">Close</button></header>
+  <div class="grid" id="saved-grid"></div>
+</div>
+
+<script src="artworks.js"></script>
+<script src="artworks_cma.js"></script>
+<script src="artworks_commons.js"></script>
+<script>
+(() => {
+  const SOURCES = {
+    aic: { name: "Art Institute of Chicago", credit: a => `Image and data: public domain (CC0), Art Institute of Chicago.${a.description ? ` Description text © Art Institute of Chicago, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.` : ""}` },
+    cma: { name: "Cleveland Museum of Art", credit: () => "Image and data: public domain (CC0), Cleveland Museum of Art Open Access." },
+    commons: { name: "Wikimedia Commons (contemporary)", link: "View on Wikimedia Commons", credit: a => `${esc(a.attribution)}${a.license_url ? ` · <a href="${esc(a.license_url)}" target="_blank" rel="noopener">License</a>` : ""}` },
+  };
+  const ALL = [...(window.ARTWORKS || []).map(a => ({ ...a, source: "aic" })), ...(window.ARTWORKS_CMA || []), ...(window.ARTWORKS_COMMONS || [])];
+  ALL.forEach(a => { a.id = String(a.id); a.tags = a.tags || []; });
+  const byId = new Map(ALL.map(a => [a.id, a]));
+  const $ = id => document.getElementById(id);
+  const img = (a, w) => `https://www.artic.edu/iiif/2/${a.image_id}/full/${w},/0/default.jpg`;
+  const local = a => `images/${a.id}.jpg`;
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const store = {
+    get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  };
+
+  // ---- filters --------------------------------------------------------------
+  const filters = { style: "", era: "", type: "", source: "" };
+  const eraKey = a => a.era || "Unknown";
+  const yearOfEra = e => {
+    const m = /^(\d+)\w+ century( BCE)?/.exec(e);
+    return m ? (m[2] ? -1 : 1) * Number(m[1]) : 9999;
+  };
+
+  function options(sel, label, values) {
+    const counts = {};
+    ALL.forEach(a => values(a).forEach(v => counts[v] = (counts[v] || 0) + 1));
+    return counts;
+  }
+  function fillSelect(sel, allLabel, counts, sortFn) {
+    const keys = Object.keys(counts).sort(sortFn || ((a, b) => counts[b] - counts[a] || a.localeCompare(b)));
+    sel.innerHTML = `<option value="">${allLabel}</option>` +
+      keys.map(k => `<option value="${esc(k)}">${esc(k)} (${counts[k]})</option>`).join("");
+  }
+  // A work matches a style if it is its main style or any of its tags.
+  const styleCounts = options(null, null, a => a.tags.length ? a.tags : ["Unclassified"]);
+  fillSelect($("f-style"), "All styles", styleCounts);
+  fillSelect($("f-era"), "All eras", options(null, null, a => [eraKey(a)]), (a, b) => yearOfEra(a) - yearOfEra(b));
+  fillSelect($("f-type"), "All types", options(null, null, a => [a.type]));
+  fillSelect($("f-source"), "All museums", options(null, null, a => [SOURCES[a.source].name]));
+
+  const matches = a =>
+    (!filters.style || (a.tags.length ? a.tags.includes(filters.style) : filters.style === "Unclassified")) &&
+    (!filters.era || eraKey(a) === filters.era) &&
+    (!filters.type || a.type === filters.type) &&
+    (!filters.source || SOURCES[a.source].name === filters.source);
+
+  // ---- shuffle bag: no repeats until every match has been shown -------------
+  let bag = [], history = [], pos = -1;
+  function refill() {
+    bag = ALL.filter(matches);
+    for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
+    $("count").textContent = `${bag.length} of ${ALL.length} works`;
+  }
+  function next() {
+    if (pos < history.length - 1) { show(history[++pos]); return; }
+    if (!bag.length) refill();
+    if (!bag.length) { showEmpty(); return; }
+    const a = bag.pop();
+    history.push(a); pos = history.length - 1;
+    show(a);
+  }
+  function prev() { if (pos > 0) show(history[--pos]); }
+
+  // ---- render ---------------------------------------------------------------
+  let current = null;
+  function show(a) {
+    current = a;
+    const el = $("art");
+    el.classList.remove("ready");
+    $("loading").style.display = "";
+    $("loading").textContent = "Loading…";
+    el.onload = () => { el.classList.add("ready"); $("loading").style.display = "none"; };
+    el.onerror = () => {
+      // Local file missing (not downloaded yet)? Try the museum's image server once.
+      if (!el.dataset.remote) { el.dataset.remote = "1"; el.src = a.remote || img(a, 843); return; }
+      $("loading").innerHTML = `The museum's image server didn't respond. <a href="${a.url}" target="_blank" rel="noopener">Open it at the museum ↗</a>`;
+    };
+    delete el.dataset.remote;
+    el.src = local(a);
+    el.alt = a.alt || a.title;
+
+    const otherTags = a.tags.filter(t => t !== a.style);
+    const desc = a.description
+      ? `<div class="desc clamp" id="desc"><p>${esc(a.description)}</p>${a.description.length > 600 ? `<button class="more" id="more">Read more</button>` : ""}</div>`
+      : a.fact ? "" : `<div class="desc"><p class="nodesc">No curator description for this work. Look closely: what would you take from it?</p></div>`;
+    const saved = isSaved(a.id);
+
+    $("info").innerHTML = `
+      <div class="kicker">
+        ${a.style ? `<button class="style-badge" data-style="${esc(a.style)}" title="Show only this style">${esc(a.style)}</button>` : ""}
+        ${otherTags.map(t => `<button class="chip" data-style="${esc(t)}" title="Show only this style">${esc(t)}</button>`).join("")}
+        ${a.era && !a.tags.includes(a.era) ? `<button class="chip" data-era="${esc(a.era)}" title="Show only this era">${esc(a.era)}</button>` : ""}
+      </div>
+      <h1>${esc(a.title)}</h1>
+      <p class="artist">${esc(a.artist)}</p>
+      <p class="date">${esc(a.date)}</p>
+      <dl>
+        ${a.type ? `<dt>Type</dt><dd>${esc(a.type)}</dd>` : ""}
+        ${a.medium ? `<dt>Medium</dt><dd>${esc(a.medium)}</dd>` : ""}
+        ${a.origin ? `<dt>Origin</dt><dd>${esc(a.origin)}</dd>` : ""}
+      </dl>
+      ${desc}
+      ${a.fact ? `<div class="desc"><p><strong>Did you know?</strong> ${esc(a.fact)}</p></div>` : ""}
+      <div class="actions">
+        <button class="btn" id="b-prev" ${pos > 0 ? "" : "disabled"}>← Back</button>
+        <button class="btn ${saved ? "saved-on" : ""}" id="b-save">${saved ? "♥ Saved" : "♡ Save"}</button>
+        <a href="${a.url}" target="_blank" rel="noopener">${SOURCES[a.source].link || `View at the ${SOURCES[a.source].name}`} ↗</a>
+      </div>
+      <p class="hint"><kbd>Space</kbd> / <kbd>→</kbd> another · <kbd>←</kbd> back · <kbd>S</kbd> save · click image to enlarge</p>
+      <p class="credit">${SOURCES[a.source].credit(a)}</p>`;
+
+    $("b-prev").onclick = prev;
+    $("b-save").onclick = toggleSave;
+    const more = $("more");
+    if (more) more.onclick = () => { $("desc").classList.remove("clamp"); more.remove(); };
+    $("info").querySelectorAll("[data-style]").forEach(b => b.onclick = () => setFilter("style", b.dataset.style));
+    $("info").querySelectorAll("[data-era]").forEach(b => b.onclick = () => setFilter("era", b.dataset.era));
+    $("info").scrollTop = 0;
+  }
+  function showEmpty() {
+    $("art").removeAttribute("src"); $("art").removeAttribute("srcset");
+    $("loading").style.display = ""; $("loading").textContent = "No works match these filters.";
+    $("info").innerHTML = `<p class="nodesc">Try clearing one of the filters.</p>`;
+  }
+
+  // ---- filter wiring (filters persist in the URL hash, so refresh keeps them) ----
+  function setFilter(key, value) {
+    filters[key] = value;
+    $("f-" + key).value = value;
+    const p = new URLSearchParams();
+    Object.entries(filters).forEach(([k, v]) => v && p.set(k, v));
+    history = []; pos = -1;
+    location.replace("#" + p.toString());
+    $("loading").textContent = "Loading…";
+    refill(); next();
+  }
+  ["style", "era", "type", "source"].forEach(k => $("f-" + k).onchange = e => setFilter(k, e.target.value));
+  new URLSearchParams(location.hash.slice(1)).forEach((v, k) => {
+    if (k in filters && [...$("f-" + k).options].some(o => o.value === v)) { filters[k] = v; $("f-" + k).value = v; }
+  });
+
+  // ---- saved board ----------------------------------------------------------
+  let saved = store.get("muse-saved", []).map(String).filter(id => byId.has(id));
+  const isSaved = id => saved.includes(id);
+  function toggleSave() {
+    if (!current) return;
+    saved = isSaved(current.id) ? saved.filter(id => id !== current.id) : [current.id, ...saved];
+    store.set("muse-saved", saved);
+    renderSaved(); show(current);
+  }
+  function renderSaved() {
+    $("b-saved").textContent = `Saved (${saved.length})`;
+    $("saved-grid").innerHTML = saved.length
+      ? saved.map(id => { const a = byId.get(id); return `<button data-id="${id}" title="${esc(a.title)}"><img src="${local(a)}" alt="${esc(a.title)}" loading="lazy"></button>`; }).join("")
+      : `<p class="empty">Nothing saved yet. Hit ♡ Save on works that spark an idea.</p>`;
+    $("saved-grid").querySelectorAll("[data-id]").forEach(b => b.onclick = () => {
+      const a = byId.get(b.dataset.id);
+      history.splice(pos + 1, 0, a); pos++; show(a); closeDrawer();
+    });
+  }
+  const openDrawer = () => { $("drawer").classList.add("open"); $("drawer").setAttribute("aria-hidden", "false"); };
+  const closeDrawer = () => { $("drawer").classList.remove("open"); $("drawer").setAttribute("aria-hidden", "true"); };
+  $("b-saved").onclick = openDrawer;
+  $("b-close").onclick = closeDrawer;
+
+  // ---- controls -------------------------------------------------------------
+  $("b-next").onclick = next;
+  $("art").onclick = () => $("stage").classList.toggle("zoom");
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "SELECT" || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === " " || e.key === "ArrowRight") { e.preventDefault(); next(); }
+    else if (e.key === "ArrowLeft") prev();
+    else if (e.key.toLowerCase() === "s") toggleSave();
+    else if (e.key === "Escape") { $("stage").classList.remove("zoom"); closeDrawer(); }
+  });
+
+  if (!ALL.length) { $("loading").textContent = "No artwork data found. Run build_dataset.py and/or build_cleveland.py first."; return; }
+  renderSaved();
+  refill(); next();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="theme-color" content="#9e846d">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Umělecký swipe</title>
+<style>
+  :root {
+    --bg: #9e846d;
+    --on-bg: #1f1812;          /* text placed directly on the background */
+    --on-bg-muted: #3a2d22;
+    --on-bg-line: rgba(31, 24, 18, .28);
+    --card: #fbfaf6;
+    --ink: #1d1b18;
+    --muted: #6b665d;
+    --line: #dcd6ca;
+    --like: #2f8f5b;
+    --nope: #c0412b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --card: #1e1d1b; --ink: #ece8df; --muted: #9d978b; --line: #34312c; --like: #4fbf82; --nope: #e8664d; }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    overscroll-behavior: none;
+  }
+  .wrap {
+    max-width: 1200px; margin: 0 auto; min-height: 100%; min-height: 100dvh;
+    display: flex; flex-direction: column;
+    padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+  .top { display: flex; justify-content: space-between; align-items: center; color: var(--on-bg-muted); font-size: 14px; padding: 2px 2px 10px; }
+  .bar { flex: 1; height: 4px; background: var(--on-bg-line); border-radius: 2px; margin-left: 12px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--on-bg); width: 0; transition: width .25s; }
+
+  /* Deck */
+  .deck { position: relative; flex: 1; min-height: 0; width: 100%; max-width: 560px; margin: 0 auto; }  /* keeps the paper close to its own proportions */
+  .card {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    padding: 18px 18px 8px;
+    color: #1f1812;                       /* always dark: it sits on paper */
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    filter: drop-shadow(0 12px 20px rgba(40, 25, 10, .42)) drop-shadow(0 3px 5px rgba(40, 25, 10, .30));
+    will-change: transform;
+  }
+  /* Hand-drawn paper card: 9-slice, so corners and outline keep their size and only the paper stretches. */
+  .card::before {
+    content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    border: 28px solid transparent;
+    border-image: url("icons/bg_swipe_card.webp") 100 fill / 28px stretch;
+  }
+  .card > * { position: relative; z-index: 1; }
+  .card.under { transform: scale(.96) translateY(8px); opacity: .7; }
+  .card .photo { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 4px; }
+  .card img {
+    max-width: 100%; max-height: 100%; object-fit: contain; display: block; pointer-events: none;
+    -webkit-touch-callout: none; user-select: none; -webkit-user-select: none;
+    transition: transform .22s ease; will-change: transform;
+  }
+  /* press-and-hold zoom: scaled around the finger (transform-origin set from JS) */
+  .card img.zoomed { transform: scale(2.5); transition: transform .22s ease, transform-origin .06s linear; }
+  .card .name { padding: 12px 8px 14px; margin-top: 10px; font-size: 18px; font-weight: 600; text-align: center; border-top: 1.5px solid rgba(45, 32, 20, .35); }
+  .card .credit { display: block; font-size: 12.5px; font-weight: 500; color: #3b2c1f; margin-top: 3px; }
+  .tile .credit { display: block; font-size: 12.5px; font-weight: 400; color: var(--muted); margin-top: 3px; }
+  .card .credit a, .tile .credit a, .rank .credit a { color: inherit; }
+  .rank .credit { display: block; color: var(--muted); margin-top: 2px; }
+  .stamp {
+    position: absolute; top: 22px; padding: 6px 14px; border: 4px solid; border-radius: 10px;
+    font-weight: 800; font-size: 28px; letter-spacing: .06em; opacity: 0; pointer-events: none;
+  }
+  .stamp.like { left: 20px; color: var(--like); transform: rotate(-14deg); }
+  .stamp.nope { right: 20px; color: var(--nope); transform: rotate(14deg); }
+
+  .buttons { display: flex; justify-content: center; gap: 28px; padding: 16px 0 4px; }
+  .round {
+    width: 72px; height: 72px; padding: 0; border: 0; border-radius: 50%;
+    background: none; cursor: pointer;
+    filter: drop-shadow(0 6px 9px rgba(30, 18, 8, .42)) drop-shadow(0 2px 3px rgba(30, 18, 8, .30));
+    transition: transform .12s ease, filter .15s ease;
+  }
+  .round img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
+  /* pressed: slightly greyed, pushed in, shorter shadow */
+  .round:active, .round.pressed {
+    transform: scale(.93) translateY(1px);
+    filter: grayscale(.65) brightness(.88) drop-shadow(0 3px 4px rgba(30, 18, 8, .38));
+  }
+  .round:focus-visible { outline: 3px solid var(--on-bg); outline-offset: 4px; }
+  .hint { text-align: center; color: var(--on-bg-muted); font-size: 13px; }
+
+  /* Results */
+  .results h1, .results h2 { color: var(--on-bg); }
+  .results h1 { font-size: 24px; margin: 8px 0 4px; }
+  .results h2 { font-size: 17px; margin: 22px 0 10px; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+  .tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .tile img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: #00000010; }
+  .tile p { margin: 0; padding: 8px 10px; font-size: 13px; line-height: 1.3; }
+  .empty { color: var(--on-bg-muted); font-size: 14px; }
+  .tabs { display: flex; gap: 8px; margin-top: 10px; }
+  .tab, .again {
+    border: 1px solid var(--line); background: var(--card); color: inherit; border-radius: 999px;
+    padding: 8px 16px; font: inherit; font-size: 14px; cursor: pointer;
+  }
+  /* Main tabs as a segmented switch: the selected one is a raised paper button, the other sinks into the track. */
+  .seg {
+    display: flex; gap: 4px; padding: 4px; margin-top: 12px; max-width: 440px;
+    background: rgba(31, 24, 18, .24); border-radius: 999px;
+    box-shadow: inset 0 1px 3px rgba(30, 18, 8, .35);
+  }
+  .seg .tab {
+    flex: 1; border: 0; background: transparent; color: rgba(31, 24, 18, .72);
+    font-weight: 500; padding: 10px 12px; transition: background .2s, color .2s, box-shadow .2s;
+  }
+  .seg .tab:hover { color: var(--on-bg); }
+  .seg .tab[aria-selected="true"] {
+    background: #f6efe6; color: #1f1812; font-weight: 700; cursor: default;
+    box-shadow: 0 2px 6px rgba(30, 18, 8, .38), 0 1px 1px rgba(30, 18, 8, .2);
+  }
+  .tab:focus-visible, .pill:focus-visible { outline: 2px solid var(--on-bg); outline-offset: 2px; }
+  .next { text-align: center; color: var(--on-bg-muted); font-size: 14px; margin: 30px 0 24px; line-height: 1.6; }
+  .next b { color: var(--on-bg); font-size: 18px; }
+  .again { display: block; margin: 28px auto 24px; background: var(--ink); color: var(--bg); border-color: var(--ink); font-size: 16px; padding: 12px 26px; }
+  .clear { display: block; margin: 0 auto; background: none; border: 0; color: var(--on-bg-muted); font-size: 13px; text-decoration: underline; cursor: pointer; }
+
+  .pill { border: 1px solid var(--on-bg-line); background: none; color: var(--on-bg-muted); border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  .pill[aria-pressed="true"] { background: var(--on-bg); color: #f4ede4; border-color: var(--on-bg); font-weight: 600; }
+  .tabs.small { margin-top: 16px; }
+  .sub { color: var(--on-bg-muted); font-size: 14px; margin: 16px 0 8px; }
+  .ranking { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+  .rank { display: grid; grid-template-columns: 26px 72px 1fr; gap: 12px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px 8px 8px; }
+  .rank.first { border-color: var(--like); box-shadow: 0 0 0 1px var(--like) inset; }
+  .rank .pos { font-weight: 700; text-align: center; color: var(--muted); }
+  .rank.first .pos { color: var(--like); }
+  .rank img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; background: #00000010; }
+  .rank .meta { min-width: 0; font-size: 14px; line-height: 1.3; }
+  .rank .meta b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .votes { display: flex; gap: 10px; font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .votes .l { color: var(--like); font-weight: 600; } .votes .d { color: var(--nope); font-weight: 600; }
+  .meter { display: flex; height: 4px; margin-top: 6px; border-radius: 2px; overflow: hidden; background: var(--line); }
+  .meter i { background: var(--like); } .meter s { background: var(--nope); }
+  .tile .day { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+  .clear { margin-top: 18px; }
+  @media (min-width: 700px) { .card .name { font-size: 20px; } }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script src="artworks.js"></script>
+<script src="artworks_cma.js"></script>
+<script src="artworks_commons.js"></script>
+<script src="pool/pool.js"></script>
+<script>
+(() => {
+  const ROUND = 10;
+  const KEY = "art-swipe-votes"; // { id: { v: "like" | "dislike", t: timestamp } }
+
+  const ALL = [
+    ...(window.ARTWORKS || []).map(a => ({ ...a, id: String(a.id), remote: `https://www.artic.edu/iiif/2/${a.image_id}/full/843,/0/default.jpg` })),
+    ...(window.ARTWORKS_CMA || []),
+    ...(window.ARTWORKS_COMMONS || []),
+  ];
+  const byId = new Map(ALL.map(a => [a.id, a]));
+  const app = document.getElementById("app");
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const localSrc = a => `pool/${a.id}.jpg`;
+  const imagesSrc = a => `images/${a.id}.jpg`;
+  // Artist credit under the name; Commons works also need their license shown (CC BY / BY-SA).
+  const credit = a => {
+    const artist = String(a.artist || "").replace(/\s*\(.*$/, "").slice(0, 70);
+    const lic = a.license ? ` · <a href="${esc(a.license_url || a.url)}" target="_blank" rel="noopener">${esc(a.license)}</a>` : "";
+    return `<span class="credit">${esc(artist)}${a.date ? `, ${esc(a.date)}` : ""}${lic}</span>`;
+  };
+
+  function loadVotes() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } }
+  function saveVotes(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {} }
+  let votes = loadVotes();
+
+  // Try the local file, then the museum's server; resolves to a working URL or null.
+  function probe(a) {
+    const urls = [localSrc(a), imagesSrc(a), a.remote].filter(Boolean);
+    return new Promise(resolve => {
+      const tryNext = () => {
+        const url = urls.shift();
+        if (!url) return resolve(null);
+        const im = new Image();
+        const timer = setTimeout(() => { im.src = ""; tryNext(); }, 6000);
+        im.onload = () => { clearTimeout(timer); resolve(url); };
+        im.onerror = () => { clearTimeout(timer); tryNext(); };
+        im.src = url;
+      };
+      tryNext();
+    });
+  }
+
+  // Without the server (opened as a file): the same 10 for everyone on a given date, seeded by the date.
+  async function seededDaily(day) {
+    let h = 2166136261;
+    for (const c of day) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+    const rand = () => { h += 0x6D2B79F5; let t = h; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    const shuffled = list => { list = list.slice().sort(); for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; } return list; };
+    // First n ids from the list whose image loads.
+    const take = async (list, n) => {
+      const out = [];
+      for (let i = 0; i < list.length && out.length < n; i += 6) {
+        const batch = list.slice(i, i + 6).filter(id => byId.has(id));
+        const ok = await Promise.all(batch.map(id => probe(byId.get(id))));
+        batch.forEach((id, k) => { if (ok[k] && out.length < n) out.push(id); });
+      }
+      return out;
+    };
+    const P = window.POOL && Array.isArray(window.POOL.works) ? window.POOL : null;
+    if (P) {  // same modern/older split as the server (7 + 3)
+      const nModern = Math.round(ROUND * (P.modern_share ?? 0.7));
+      const modern = await take(shuffled(P.works.filter(w => w.modern).map(w => w.id)), nModern);
+      const older = await take(shuffled(P.works.filter(w => !w.modern).map(w => w.id)), ROUND - modern.length);
+      const ids = [...modern, ...older];
+      for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; }
+      return ids;
+    }
+    return take(shuffled(ALL.map(a => a.id)), ROUND);
+  }
+  const localDay = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const localMidnight = () => { const d = new Date(); d.setHours(24, 0, 0, 0); return d.toISOString(); };
+
+  // For result tiles: local first, then remote, otherwise hide the broken image.
+  function setImage(img, a) {
+    const urls = [imagesSrc(a), a.remote].filter(Boolean);  // fallbacks after pool/
+    img.src = localSrc(a);
+    img.onerror = () => {
+      const next = urls.shift();
+      if (next) img.src = next; else img.style.visibility = "hidden";
+    };
+  }
+
+  if (!ALL.length) { app.innerHTML = `<p class="empty">No artwork data found. Run the build scripts first.</p>`; return; }
+
+  // ---------- server (daily 10 + winners); personal data stays in localStorage ----------
+  const DAILY_KEY = "art-swipe-daily";   // { day, voted: { id: "like" | "dislike" } }
+  const DEVICE_KEY = "art-swipe-device"; // random id so the server counts one vote per device
+  function deviceId() {
+    let id = null;
+    try { id = localStorage.getItem(DEVICE_KEY); } catch {}
+    if (!id) {
+      id = (crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join(""));
+      try { localStorage.setItem(DEVICE_KEY, id); } catch {}
+    }
+    return id;
+  }
+  async function api(query, body) {
+    if (location.protocol === "file:") return null;
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 8000);
+      const res = await fetch(`api.php?${query}`, body
+        ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), keepalive: true, signal: ctrl.signal }
+        : { signal: ctrl.signal });
+      clearTimeout(timer);
+      return res.ok ? await res.json() : null;
+    } catch { return null; }
+  }
+  // ---------- anonymous visit stats (GDPR): seconds on screen + swipes, per page load ----------
+  // The visit id is random for this page load only and is never stored, so visits can't be linked
+  // to each other, to this device or to its votes.
+  const VISIT_ID = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, "0")).join("");
+  // Traffic source from the link, e.g. swipe.html?source=instagram (or utm_source=…). Sent only with this
+  // anonymous visit, never stored on the device; removed from the address so shared/bookmarked links don't repeat it.
+  const VISIT_SOURCE = (() => {
+    const params = new URLSearchParams(location.search);
+    const raw = params.get("source") || params.get("utm_source") || "";
+    const clean = raw.toLowerCase().trim().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32);
+    if (params.has("source") || params.has("utm_source")) {
+      ["source", "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"].forEach(k => params.delete(k));
+      const qs = params.toString();
+      try { history.replaceState(null, "", location.pathname + (qs ? `?${qs}` : "") + location.hash); } catch {}
+    }
+    return clean;
+  })();
+  let visibleMs = 0, visibleSince = document.hidden ? null : Date.now(), visitSwipes = 0, lastSent = "";
+  const visitSeconds = () => Math.round((visibleMs + (visibleSince ? Date.now() - visibleSince : 0)) / 1000);
+  function sendVisit(final) {
+    if (location.protocol === "file:") return;
+    const seconds = visitSeconds();
+    const body = JSON.stringify({ visit: VISIT_ID, seconds, swipes: visitSwipes, source: VISIT_SOURCE });
+    if (seconds < 1 || body === lastSent) return;
+    lastSent = body;
+    try {
+      if (final && navigator.sendBeacon) navigator.sendBeacon("api.php?action=stat", body);
+      else fetch("api.php?action=stat", { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
+    } catch {}
+  }
+  // Time the current card is on screen (paused while the page is hidden); sent with the swipe, totals only.
+  let viewMs = 0, viewSince = null;
+  const startView = () => { viewMs = 0; viewSince = document.hidden ? null : Date.now(); };
+  const viewElapsed = () => viewMs + (viewSince ? Date.now() - viewSince : 0);
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      if (visibleSince) { visibleMs += Date.now() - visibleSince; visibleSince = null; }
+      if (viewSince) { viewMs += Date.now() - viewSince; viewSince = null; }
+      sendVisit(true);
+    } else {
+      visibleSince = Date.now();
+      if (topCard) viewSince = Date.now();
+    }
+  });
+  window.addEventListener("pagehide", () => sendVisit(true));
+  setInterval(() => { if (!document.hidden) sendVisit(false); }, 20000);
+
+  function loadDaily(day) {
+    try { const d = JSON.parse(localStorage.getItem(DAILY_KEY)); if (d && d.day === day) return d; } catch {}
+    return { day, voted: {} };
+  }
+  function saveDaily(d) { try { localStorage.setItem(DAILY_KEY, JSON.stringify(d)); } catch {} }
+
+  let offline = false;      // true when api.php isn't reachable: votes stay on this device only
+  let daily = null;         // { day, ids, resets_at }
+  let dailyLocal = null;    // this device's votes for today's set
+  let round = [];
+  let index = 0;
+  const results = [];       // { id, v } for this round
+
+  // ---------- swipe screen ----------
+  app.innerHTML = `
+    <div class="top"><span id="count"></span><div class="bar"><i id="bar"></i></div></div>
+    <div class="deck" id="deck"></div>
+    <div class="buttons">
+      <button class="round nope" id="b-nope" aria-label="Nelíbí se"><img src="icons/dislike.webp" alt="" draggable="false"></button>
+      <button class="round like" id="b-like" aria-label="Líbí se"><img src="icons/like.webp" alt="" draggable="false"></button>
+    </div>
+    <p class="hint">Doprava = líbí · doleva = nelíbí · podržením přiblížíte</p>`;
+  const deck = document.getElementById("deck");
+
+  function makeCard(a) {
+    const el = document.createElement("div");
+    el.className = "card";
+    el.innerHTML = `<div class="photo"><img alt="${esc(a.alt || a.title)}" draggable="false"></div>
+      <div class="name">${esc(a.title)}${credit(a)}</div>
+      <div class="stamp like">LÍBÍ</div><div class="stamp nope">NELÍBÍ</div>`;
+    el.querySelector("img").src = a.src;
+    return el;
+  }
+
+  let topCard = null;
+  function render() {
+    deck.innerHTML = "";
+    const doneBefore = daily.ids.length - round.length;  // votes from an earlier visit today
+    document.getElementById("count").textContent = `Dnešních 10 · ${Math.min(doneBefore + index + 1, daily.ids.length)} / ${daily.ids.length}`;
+    document.getElementById("bar").style.width = `${(index / round.length) * 100}%`;
+    if (index >= round.length) { showResults(); return; }
+    if (round[index + 1]) {
+      const under = makeCard(round[index + 1]);
+      under.classList.add("under");
+      deck.appendChild(under);
+    }
+    topCard = makeCard(round[index]);
+    deck.appendChild(topCard);
+    attachDrag(topCard);
+    startView();
+  }
+
+  // Grey the button briefly (a tap is too quick for :active to be seen; also shown on swipes).
+  function pressButton(v) {
+    const btn = document.getElementById(v === "like" ? "b-like" : "b-nope");
+    if (!btn) return;
+    btn.classList.add("pressed");
+    setTimeout(() => btn.classList.remove("pressed"), 260);
+  }
+
+  function decide(v) {
+    if (!topCard || topCard.dataset.leaving) return;
+    pressButton(v);
+    const card = topCard;
+    card.dataset.leaving = "1";
+    const a = round[index];
+    votes[a.id] = { v, t: Date.now() };
+    saveVotes(votes);
+    results.push({ id: a.id, v });
+    dailyLocal.voted[a.id] = v;
+    visitSwipes++;
+    saveDaily(dailyLocal);
+    if (!offline) {
+      api("action=vote", { device: deviceId(), id: a.id, vote: v });
+      api("action=view", { id: a.id, ms: Math.round(viewElapsed()) });
+    }
+
+    const dir = v === "like" ? 1 : -1;
+    card.style.transition = "transform .3s ease-out, opacity .3s";
+    card.style.transform = `translateX(${dir * window.innerWidth}px) rotate(${dir * 25}deg)`;
+    card.style.opacity = "0";
+    card.querySelector(v === "like" ? ".stamp.like" : ".stamp.nope").style.opacity = 1;
+    setTimeout(() => { index++; render(); }, 260);
+  }
+
+  const HOLD_MS = 260;   // press this long without moving to zoom
+  const MOVE_TOL = 8;    // px of movement allowed before it counts as a swipe
+
+  function attachDrag(card) {
+    let startX = 0, startY = 0, dx = 0, dy = 0, dragging = false, t0 = 0;
+    let holdTimer = null, zooming = false;
+    const like = card.querySelector(".stamp.like"), nope = card.querySelector(".stamp.nope");
+    const img = card.querySelector(".photo img");
+
+    // Zoom origin = finger position inside the picture, so the spot under the finger stays put.
+    // Unscaled picture box on screen (offset* ignore the zoom transform, so this works while zoomed too).
+    function picRect() {
+      const p = img.parentElement.getBoundingClientRect();
+      return { left: p.left + img.offsetLeft, top: p.top + img.offsetTop, width: img.offsetWidth, height: img.offsetHeight };
+    }
+    function zoomAt(x, y) {
+      const r = picRect();
+      const px = Math.max(0, Math.min(100, (x - r.left) / r.width * 100));
+      const py = Math.max(0, Math.min(100, (y - r.top) / r.height * 100));
+      img.style.transformOrigin = `${px}% ${py}%`;
+    }
+    function onPicture(x, y) {
+      const r = picRect();
+      return x >= r.left && x <= r.left + r.width && y >= r.top && y <= r.top + r.height;
+    }
+    function startZoom(x, y) {
+      zooming = true;
+      card.style.transition = "transform .15s ease";
+      card.style.transform = "";
+      like.style.opacity = nope.style.opacity = 0;
+      zoomAt(x, y);
+      img.classList.add("zoomed");
+      if (navigator.vibrate) try { navigator.vibrate(8); } catch {}
+    }
+    function stopZoom() {
+      zooming = false;
+      img.classList.remove("zoomed");
+      card.style.transition = "transform .25s ease";
+      card.style.transform = "";
+    }
+
+    card.addEventListener("contextmenu", e => e.preventDefault());  // no long-press menu on phones
+    card.addEventListener("pointerdown", e => {
+      dragging = true; startX = e.clientX; startY = e.clientY; dx = dy = 0; t0 = performance.now();
+      card.setPointerCapture(e.pointerId);
+      card.style.transition = "none";
+      clearTimeout(holdTimer);
+      if (img && onPicture(e.clientX, e.clientY)) {
+        holdTimer = setTimeout(() => { if (dragging && Math.hypot(dx, dy) < MOVE_TOL) startZoom(startX, startY); }, HOLD_MS);
+      }
+    });
+    card.addEventListener("pointermove", e => {
+      if (!dragging) return;
+      if (zooming) {
+        zoomAt(e.clientX, e.clientY);   // pan: the zoom follows the finger
+        return;
+      }
+      dx = e.clientX - startX; dy = e.clientY - startY;
+      if (Math.hypot(dx, dy) >= MOVE_TOL) clearTimeout(holdTimer);   // it's a swipe, not a hold
+      card.style.transform = `translate(${dx}px, ${dy * 0.3}px) rotate(${dx / 18}deg)`;
+      like.style.opacity = Math.max(0, Math.min(1, dx / 100));
+      nope.style.opacity = Math.max(0, Math.min(1, -dx / 100));
+    });
+    const end = () => {
+      clearTimeout(holdTimer);
+      if (!dragging) return;
+      dragging = false;
+      if (zooming) { stopZoom(); return; }   // releasing a zoom never counts as a vote
+      const speed = Math.abs(dx) / Math.max(1, performance.now() - t0); // px per ms
+      const threshold = Math.min(120, card.offsetWidth * 0.28);
+      if (Math.abs(dx) > threshold || (speed > 0.6 && Math.abs(dx) > 40)) {
+        decide(dx > 0 ? "like" : "dislike");
+      } else {
+        card.style.transition = "transform .25s ease";
+        card.style.transform = "";
+        like.style.opacity = nope.style.opacity = 0;
+      }
+    };
+    card.addEventListener("pointerup", end);
+    card.addEventListener("pointercancel", end);
+  }
+
+  document.getElementById("b-like").onclick = () => decide("like");
+  document.getElementById("b-nope").onclick = () => decide("dislike");
+  document.addEventListener("keydown", e => {
+    if (e.key === "ArrowRight") decide("like");
+    else if (e.key === "ArrowLeft") decide("dislike");
+  });
+
+  // ---------- results ----------
+  function tiles(ids) {
+    if (!ids.length) return `<p class="empty">Žádné.</p>`;
+    return `<div class="grid">${ids.map(id => {
+      const a = byId.get(id);
+      if (!a) return "";
+      return `<div class="tile"><img data-id="${esc(id)}" alt="${esc(a.title)}" loading="lazy"><p>${esc(a.title)}${credit(a)}</p></div>`;
+    }).join("")}</div>`;
+  }
+
+  const fmtDay = d => new Date(d + "T12:00:00").toLocaleDateString("cs-CZ", { weekday: "short", day: "numeric", month: "short" });
+
+  function mineHTML(scope) {
+    let list;
+    if (scope === "round") list = Object.entries(dailyLocal.voted).map(([id, v]) => ({ id, v }));
+    else list = Object.entries(votes).sort((a, b) => b[1].t - a[1].t).map(([id, x]) => ({ id, v: x.v }));
+    const liked = list.filter(r => r.v === "like").map(r => r.id);
+    const disliked = list.filter(r => r.v === "dislike").map(r => r.id);
+    return `
+      <div class="tabs small">
+        <button class="pill" data-scope="round" aria-pressed="${scope === "round"}">Dnešních 10</button>
+        <button class="pill" data-scope="all" aria-pressed="${scope === "all"}">Celkem (${Object.keys(votes).length})</button>
+      </div>
+      <h2><span class="dot" style="background:var(--like)"></span>Líbí se mi (${liked.length})</h2>
+      ${tiles(liked)}
+      <h2><span class="dot" style="background:var(--nope)"></span>Nelíbí se mi (${disliked.length})</h2>
+      ${tiles(disliked)}
+      <button class="clear" id="clear">Smazat moje uložená hodnocení</button>`;
+  }
+
+  async function winnersHTML() {
+    const w = offline ? null : await api("action=winners&days=14");
+    if (!w) return `<p class="empty">Denní vítězové potřebují server (api.php). Otevřete stránku přes PHP server, ne jako soubor.</p>`;
+    const max = Math.max(1, ...w.today.map(r => r.likes + r.dislikes));
+    const rows = w.today.map((r, i) => {
+      const a = byId.get(r.id);
+      if (!a) return "";
+      const total = r.likes + r.dislikes;
+      const pct = total ? Math.round(r.likes / total * 100) : 0;
+      return `<li class="rank ${i === 0 && r.likes > 0 ? "first" : ""}">
+        <span class="pos">${i + 1}</span>
+        <img data-id="${esc(r.id)}" alt="${esc(a.title)}" loading="lazy">
+        <div class="meta">
+          <b>${esc(a.title)}</b>${credit(a)}
+          <div class="votes"><span class="l">♥ ${r.likes}</span><span class="d">✕ ${r.dislikes}</span>${total ? `<span>líbí se ${pct} %</span>` : ""}</div>
+          <div class="meter"><i style="width:${r.likes / max * 100}%"></i><s style="width:${r.dislikes / max * 100}%"></s></div>
+        </div></li>`;
+    }).join("");
+    const past = w.past.length
+      ? `<div class="grid">${w.past.map(p => {
+          const a = byId.get(p.id);
+          if (!a) return "";
+          return `<div class="tile"><img data-id="${esc(p.id)}" alt="${esc(a.title)}" loading="lazy">
+            <p><span class="day">${esc(fmtDay(p.day))} · ♥ ${p.likes}</span>${esc(a.title)}${credit(a)}</p></div>`;
+        }).join("")}</div>`
+      : `<p class="empty">Zatím žádní předchozí vítězové. Přijďte zítra.</p>`;
+    return `
+      <p class="sub">${esc(fmtDay(w.day))} · dnes ${w.voters === 1 ? "hlasoval" : w.voters >= 2 && w.voters <= 4 ? "hlasovali" : "hlasovalo"} ${w.voters} ${w.voters === 1 ? "člověk" : w.voters >= 2 && w.voters <= 4 ? "lidé" : "lidí"}</p>
+      <ol class="ranking">${rows}</ol>
+      <h2>Předchozí denní vítězové</h2>
+      ${past}`;
+  }
+
+  // Opens on "Denní vítězové"; without the server (file mode) on "Moje hodnocení", since winners need api.php.
+  async function showResults(tab = offline ? "mine" : "winners", scope = "round") {
+    topCard = null;
+    app.innerHTML = `
+      <div class="results">
+        <h1>Dnešních 10 hotovo</h1>
+        <div class="seg" role="tablist">
+          <button class="tab" role="tab" data-tab="mine" aria-selected="${tab === "mine"}">Moje hodnocení</button>
+          <button class="tab" role="tab" data-tab="winners" aria-selected="${tab === "winners"}">Denní vítězové</button>
+        </div>
+        <div id="panel">${tab === "mine" ? mineHTML(scope) : `<p class="empty">Načítání…</p>`}</div>
+        <p class="next" id="next"></p>
+      </div>`;
+    app.querySelectorAll(".tab").forEach(b => b.onclick = () => showResults(b.dataset.tab, scope));
+    updateCountdown();
+    if (tab === "winners") document.getElementById("panel").innerHTML = await winnersHTML();
+    const panel = document.getElementById("panel");
+    panel.querySelectorAll("img[data-id]").forEach(img => setImage(img, byId.get(img.dataset.id)));
+    panel.querySelectorAll(".pill").forEach(b => b.onclick = () => showResults("mine", b.dataset.scope));
+    const clear = document.getElementById("clear");
+    if (clear) clear.onclick = () => {
+      if (confirm("Smazat všechna hodnocení uložená v tomto zařízení? (Hlasy už započítané do denních vítězů zůstanou.)")) {
+        votes = {}; saveVotes(votes); showResults("mine", scope);
+      }
+    };
+  }
+
+  // ---------- midnight reset ----------
+  function untilReset() { return Math.max(0, new Date(daily.resets_at).getTime() - Date.now()); }
+  function updateCountdown() {
+    const el = document.getElementById("next");
+    if (!el || !daily) return;
+    const m = Math.ceil(untilReset() / 60000), h = Math.floor(m / 60);
+    el.innerHTML = `Přijďte zítra: nových 10 o půlnoci<br>zbývá <b>${h ? `${h} h ` : ""}${m % 60} min</b>`;
+  }
+  function scheduleReset() {
+    setInterval(updateCountdown, 30000);
+    // Reload right after midnight (also mid-swipe, so nobody votes on yesterday's set).
+    const wait = untilReset() + 2000;
+    if (wait < 2 ** 31) setTimeout(() => location.reload(), wait);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && untilReset() === 0) location.reload(); });
+  }
+
+  // ---------- start: today's 10, once per day ----------
+  // Testing: ?mode=restart forgets this device's progress on today's 10 and (via api.php) replaces
+  // today's set with a fresh pick from pool/. Today's votes on the server are deleted too.
+  function handleRestart() {
+    const params = new URLSearchParams(location.search);
+    if (params.get("mode") !== "restart") return false;
+    try { localStorage.removeItem(DAILY_KEY); } catch {}
+    params.delete("mode");
+    const qs = params.toString();
+    history.replaceState(null, "", location.pathname + (qs ? `?${qs}` : "") + location.hash);
+    return true;
+  }
+
+  async function start() {
+    const restarted = handleRestart();
+    document.getElementById("count").textContent = restarted ? "Restartováno · načítání…" : "Načítání…";
+    // Ask the server for a fresh set from pool/ (only works while ALLOW_RESTART is on in api.php).
+    if (restarted) await api("action=restart", {});
+    daily = await api("action=daily");
+    if (!daily || !Array.isArray(daily.ids)) {
+      offline = true;
+      const day = localDay();
+      daily = { day, ids: await seededDaily(day), resets_at: localMidnight() };
+    }
+    daily.ids = daily.ids.filter(id => byId.has(id));
+    dailyLocal = loadDaily(daily.day);
+    scheduleReset();
+    const todo = daily.ids.filter(id => !dailyLocal.voted[id]).map(id => byId.get(id));
+    const srcs = await Promise.all(todo.map(probe));
+    round = todo.map((a, i) => srcs[i] ? { ...a, src: srcs[i] } : null).filter(Boolean);
+    if (!round.length) {
+      if (!daily.ids.length) { deck.innerHTML = `<p class="empty">Nepodařilo se načíst žádné obrázky. Zkontrolujte, že složka images/ je vedle této stránky.</p>`; return; }
+      showResults();  // already done today
+      return;
+    }
+    render();
+  }
+  start();
+})();
+</script>
+</body>
+</html>
